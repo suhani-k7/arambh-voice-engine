@@ -1,17 +1,21 @@
+import asyncio
 import base64
 import json
 from fastapi import WebSocket
-from core.interfaces import TelephonyHandler, STTHandler, LLMHandler
+from core.interfaces import TelephonyHandler, STTHandler, LLMHandler, TTSHandler
 from application.conversation_engine import ConversationEngine
+from application.audio_bridge import AudioBridge
 from utils.logger import AppLogger
 
 logger = AppLogger.get_instance()
 
+
 class TwilioHandler(TelephonyHandler):
 
-    def __init__(self, stt_handler: STTHandler, llm_handler: LLMHandler):
+    def __init__(self, stt_handler: STTHandler, llm_handler: LLMHandler, tts_handler: TTSHandler):
         self._stt = stt_handler
         self._llm = llm_handler
+        self._tts = tts_handler
 
     async def handle_incoming_call(self, host: str) -> str:
         logger.info("Incoming call received")
@@ -26,16 +30,45 @@ class TwilioHandler(TelephonyHandler):
 
     async def handle_media_stream(self, websocket: WebSocket) -> None:
         logger.info("Media stream WebSocket opened")
-        engine = ConversationEngine(llm=self._llm, call_sid="UNKNOWN")
 
-        async def on_transcript(text: str, is_final: bool):
+        engine = ConversationEngine(llm=self._llm, call_sid="UNKNOWN")
+        bridge: AudioBridge | None = None
+        response_queue: asyncio.Queue = asyncio.Queue()
+
+        async def speak(text: str) -> None:
+            """Synthesize and stream TTS audio."""
+            try:
+                mulaw_bytes = await self._tts.synthesize(text)
+                if bridge:
+                    await bridge.play(mulaw_bytes)
+            except Exception as e:
+                logger.error("TTS/playback error: %s", e)
+
+        async def response_worker() -> None:
+            """Processes agent responses sequentially from the queue."""
+            while True:
+                text = await response_queue.get()
+                if text is None:
+                    break
+                await speak(text)
+                response_queue.task_done()
+
+        async def on_transcript(text: str, is_final: bool) -> None:
+            if not is_final:
+                # Interim transcript — trigger barge-in if agent is speaking
+                if bridge and bridge.is_playing:
+                    bridge.barge_in()
+                return
+
             response = await engine.process_transcript(text, is_final)
             if response:
-                logger.info(">>> AGENT RESPONSE: %s", response)
-                # Phase 4: send response to TTS and back to Twilio here
+                await response_queue.put(response)
 
         self._stt.on_transcript(on_transcript)
         await self._stt.connect()
+
+        # Start response worker
+        worker_task = asyncio.create_task(response_worker())
 
         try:
             while True:
@@ -50,11 +83,12 @@ class TwilioHandler(TelephonyHandler):
                     stream_sid = data["start"]["streamSid"]
                     call_sid = data["start"]["callSid"]
                     engine.state.call_sid = call_sid
+                    bridge = AudioBridge(websocket, stream_sid)
                     logger.info("Stream started | streamSid: %s | callSid: %s", stream_sid, call_sid)
-                    # Send greeting
+
+                    # Speak greeting
                     greeting = engine.get_greeting()
-                    logger.info(">>> GREETING: %s", greeting)
-                    # Phase 4: speak greeting via TTS here
+                    asyncio.create_task(speak(greeting))
 
                 elif event_type == "media":
                     payload = data["media"]["payload"]
@@ -68,6 +102,8 @@ class TwilioHandler(TelephonyHandler):
         except Exception as e:
             logger.error("Media stream error: %s", e)
         finally:
+            await response_queue.put(None)  # stop worker
+            await worker_task
             await self._stt.disconnect()
-            logger.info("Media stream session ended")
             logger.info("Final borrower profile: %s", engine.state.borrower.to_dict())
+            logger.info("Media stream session ended")

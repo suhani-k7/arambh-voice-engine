@@ -23,3 +23,5 @@ twilio==9.6.3
 websockets==15.0.1
 deepgram-sdk==3.10.1
 groq==0.30.0
+httpx==0.28.1
+audioop-lts==0.2.1

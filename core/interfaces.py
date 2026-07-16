@@ -43,3 +43,9 @@ class LLMHandler(ABC):
     async def get_response(self, conversation_history: list[dict]) -> str:
         """Given full conversation history, return agent's next response."""
         pass
+
+class TTSHandler(ABC):
+    @abstractmethod
+    async def synthesize(self, text: str) -> bytes:
+        """Convert text to mulaw 8kHz audio bytes ready for Twilio."""
+        pass
