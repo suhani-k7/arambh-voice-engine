@@ -27,3 +27,24 @@ The system aims to replace manual telephonic interactions by enabling real-time 
 ## Status
 
 🚧 Currently under development.
+## Development Phases
+
+**Phase 0 – Project Setup**: Repository initialized, core clean‑architecture skeleton created, basic FastAPI app scaffolded. ✅ Completed.
+
+**Phase 1 – Telephony Integration**: Twilio/WebSocket audio streaming, `TelephonyHandler` interface and `twilio_handler` implementation. ✅ Completed.
+
+**Phase 2 – Speech‑to‑Text**: Deepgram streaming STT handler, `STTHandler` interface, basic transcript collection. ✅ Completed.
+
+**Phase 3 – Conversational Logic**: `ConversationEngine`, `ConversationState`, LLM response handling, basic turn‑taking flow. ✅ Completed.
+
+**Phase 4 – Text‑to‑Speech**: Sarvam AI TTS handler, audio synthesis back to Twilio. ✅ Completed.
+
+**Phase 5 – Data Extraction & Persistence**: LLM‑based borrower profile extraction (`ExtractorHandler`), SQLite storage (`SQLiteStorageHandler`), API endpoints for retrieving borrower profiles and transcripts. ✅ Completed.
+
+**Phase 6 – E2E testing, latency profiling, timeout recovery, transcript fallbacks**: Comprehensive end‑to‑end test suite, performance benchmarks, graceful degradation strategies, and fallback mechanisms for missing transcripts. ✅ Planned.
+
+**Phase 7 – Deployment**: Backend deployment pipeline, webhook verification steps, environment configuration management, CI/CD integration. ✅ Planned.
+
+**Phase 8 – Analytics**: Call metrics collection, latency monitoring, success/failure rates, conversation analytics dashboard. ✅ Planned.
+
+**Phase 9 – Documentation**: Full developer docs, usage guides, README expansion, API reference. ✅ Planned.
