@@ -113,11 +113,77 @@ async def simulate_conversation():
     print("\n✅ Conversation simulation complete!")
 
 
+async def simulate_persistence_and_extraction():
+    """Phase 5 test — tests full conversation, LLM extraction pass, SQLite storage, and transcript export."""
+    print("\n--- Phase 5: Persistence & Structured Extraction Simulation ---")
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        call_sid = f"SIM_CALL_{int(asyncio.get_event_loop().time() * 1000)}"
+
+        # 1. Reset dev engine for a clean session
+        r = await client.post(f"{BASE_URL}/dev/reset", json={"call_sid": call_sid})
+        print(f"🔄 Initialized call session: {r.json()}")
+
+        # 2. Get greeting
+        r = await client.get(f"{BASE_URL}/dev/greeting")
+        print(f"\nAgent: {r.json()['response']}")
+
+        # 3. Simulate realistic Indian Hinglish conversation turns
+        turns = [
+            "Namaste, mera naam Amit Patel hai and my phone is 9876543210",
+            "Mujhe 12 lakh rupaye ka loan chahiye",
+            "Meri monthly income approx 95 thousand per month hai",
+            "Ye loan mujhe new dairy machinery business expand karne ke liye chahiye",
+            "Haan sab information theek hai, please proceed kar dijiye",
+        ]
+
+        for turn in turns:
+            print(f"\nBorrower: {turn}")
+            r = await client.post(
+                f"{BASE_URL}/dev/inject-transcript",
+                json={"text": turn, "is_final": True}
+            )
+            data = r.json()
+            print(f"Agent: {data['response']}")
+            print(f"Stage: {data['stage']} | Real-time Profile: {data['borrower']}")
+            await asyncio.sleep(0.5)
+
+        # 4. Trigger Call Completion & LLM Extraction
+        print("\n⏳ Completing call & running LLM extraction pass...")
+        r = await client.post(f"{BASE_URL}/dev/complete-call")
+        completion_data = r.json()
+        print(f"✅ Call completion response:\n{json.dumps(completion_data, indent=2)}")
+
+        # 5. Query Persistence API
+        print(f"\n🔍 Querying GET /borrowers/{call_sid}...")
+        r = await client.get(f"{BASE_URL}/borrowers/{call_sid}")
+        saved_borrower = r.json()
+        print(f"Stored Profile in Database:\n{json.dumps(saved_borrower, indent=2)}")
+
+        print(f"\n🔍 Querying GET /calls/{call_sid}/transcript...")
+        r = await client.get(f"{BASE_URL}/calls/{call_sid}/transcript")
+        saved_transcript = r.json()
+        print(f"Stored Transcript Count: {saved_transcript.get('turns_count')}")
+
+        # Check transcript JSON export file
+        transcript_file = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "storage", "transcripts", f"{call_sid}.json"
+        )
+        if os.path.exists(transcript_file):
+            print(f"✅ Transcript JSON file verified at: {transcript_file}")
+        else:
+            print(f"⚠️ Transcript JSON file not found at: {transcript_file}")
+
+        print("\n🎉 Phase 5 Persistence & Extraction Simulation Complete!")
+
+
 async def main():
     print("Choose test mode:")
     print("1 — Audio stream (Phase 1 & 2)")
     print("2 — Conversation (Phase 3)")
-    print("3 — Both")
+    print("3 — TTS only (Phase 4)")
+    print("4 — Persistence & Structured Extraction (Phase 5)")
+    print("5 — Run All Tests")
     choice = input("Enter choice: ").strip()
 
     if choice == "1":
@@ -125,9 +191,16 @@ async def main():
     elif choice == "2":
         await simulate_conversation()
     elif choice == "3":
+        await simulate_tts()
+    elif choice == "4":
+        await simulate_persistence_and_extraction()
+    elif choice == "5":
         await simulate_audio_stream()
+        await simulate_tts()
         await simulate_conversation()
+        await simulate_persistence_and_extraction()
     else:
         print("Invalid choice")
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())

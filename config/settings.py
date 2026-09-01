@@ -10,6 +10,7 @@ class Settings:
         self.DEEPGRAM_API_KEY: str = os.getenv("DEEPGRAM_API_KEY", "").strip()
         self.SARVAM_API_KEY: str = os.getenv("SARVAM_API_KEY", "").strip()
         self.LLM_API_KEY: str = os.getenv("LLM_API_KEY", "").strip()
+        self.LLM_MODEL: str = os.getenv("LLM_MODEL", "openai/gpt-oss-120b").strip()
         self.LLM_INFRA_ENDPOINT: str = os.getenv(
             "LLM_INFRA_ENDPOINT", "https://api.groq.com/openai/v1/chat/completions"
         ).strip()
@@ -18,6 +19,7 @@ class Settings:
         self.HOST: str = os.getenv("HOST", "0.0.0.0")
         self.PORT: int = int(os.getenv("PORT", 8000))
         self._assert_valid_environment()
+
 
     def _assert_valid_environment(self) -> None:
         missing = []

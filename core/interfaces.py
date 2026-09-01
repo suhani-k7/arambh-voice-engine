@@ -49,3 +49,49 @@ class TTSHandler(ABC):
     async def synthesize(self, text: str) -> bytes:
         """Convert text to mulaw 8kHz audio bytes ready for Twilio."""
         pass
+
+
+class StorageHandler(ABC):
+    @abstractmethod
+    async def initialize(self) -> None:
+        """Initialize database tables and storage directories."""
+        pass
+
+    @abstractmethod
+    async def save_call(self, call_data: dict) -> None:
+        """Save or update call session metadata."""
+        pass
+
+    @abstractmethod
+    async def save_borrower_profile(self, call_sid: str, profile_dict: dict) -> None:
+        """Save extracted borrower profile for a call."""
+        pass
+
+    @abstractmethod
+    async def save_transcript(self, call_sid: str, history: list[dict]) -> None:
+        """Save conversation transcript turns."""
+        pass
+
+    @abstractmethod
+    async def get_borrower_profile(self, call_sid: str) -> dict | None:
+        """Retrieve borrower profile by call_sid."""
+        pass
+
+    @abstractmethod
+    async def get_all_borrowers(self) -> list[dict]:
+        """Retrieve all stored borrower profiles with call metadata."""
+        pass
+
+    @abstractmethod
+    async def get_call_transcript(self, call_sid: str) -> list[dict]:
+        """Retrieve conversation history for a call_sid."""
+        pass
+
+
+class ExtractorHandler(ABC):
+    @abstractmethod
+    async def extract_profile(self, history: list[dict], current_profile: dict) -> dict:
+        """
+        Analyze conversation history and return a structured dictionary of borrower profile fields.
+        """
+        pass

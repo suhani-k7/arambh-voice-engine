@@ -32,12 +32,18 @@ class GroqHandler(LLMHandler):
         self._client = AsyncGroq(api_key=settings.LLM_API_KEY)
 
     async def get_response(self, conversation_history: list[dict]) -> str:
-        logger.info("Sending %d messages to Groq", len(conversation_history))
+        # Sanitize messages to only role and content
+        clean_history = [
+            {"role": msg["role"], "content": msg["content"]}
+            for msg in conversation_history
+            if msg.get("role") and msg.get("content") is not None
+        ]
+        logger.info("Sending %d messages to Groq", len(clean_history))
         try:
             response = await self._client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "system", "content": SYSTEM_PROMPT}] + conversation_history,
-                max_tokens=150,      # keep responses short for voice
+                model=settings.LLM_MODEL,
+                messages=[{"role": "system", "content": SYSTEM_PROMPT}] + clean_history,
+                max_tokens=300,
                 temperature=0.7,
             )
             reply = response.choices[0].message.content.strip()

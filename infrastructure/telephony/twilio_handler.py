@@ -83,6 +83,14 @@ class TwilioHandler(TelephonyHandler):
                     stream_sid = data["start"]["streamSid"]
                     call_sid = data["start"]["callSid"]
                     engine.state.call_sid = call_sid
+                    engine.state.stream_sid = stream_sid
+                    
+                    # Capture caller phone from Twilio custom parameters if present
+                    custom_params = data["start"].get("customParameters", {})
+                    caller_phone = custom_params.get("From") or custom_params.get("Caller")
+                    if caller_phone and not engine.state.borrower.phone:
+                        engine.state.borrower.phone = str(caller_phone)
+
                     bridge = AudioBridge(websocket, stream_sid)
                     logger.info("Stream started | streamSid: %s | callSid: %s", stream_sid, call_sid)
 
@@ -105,5 +113,12 @@ class TwilioHandler(TelephonyHandler):
             await response_queue.put(None)  # stop worker
             await worker_task
             await self._stt.disconnect()
-            logger.info("Final borrower profile: %s", engine.state.borrower.to_dict())
+            
+            # Finalize extraction and persist to SQLite + JSON
+            try:
+                final_profile = await engine.finalize_profile()
+                logger.info("Finalized and persisted borrower profile: %s", final_profile.to_dict())
+            except Exception as fe:
+                logger.error("Error during call finalization and persistence: %s", fe)
+
             logger.info("Media stream session ended")
