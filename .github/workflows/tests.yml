@@ -1,0 +1,48 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    env:
+      # Dummy, non-secret placeholder values. config/settings.py raises at
+      # import time if these are empty, and almost every test file
+      # transitively imports it - so they must be set to *something* for
+      # collection to succeed. They are never used to make a real API call:
+      # the one test that would need real credentials (test_e2e_call_flow.py)
+      # self-skips when it can't reach a live server (see
+      # tests/conftest.py's _ensure_server_running), and every other test
+      # that touches an LLM/STT/TTS call monkeypatches it directly.
+      DEEPGRAM_API_KEY: ci-dummy-deepgram-key
+      SARVAM_API_KEY: ci-dummy-sarvam-key
+      LLM_API_KEY: ci-dummy-llm-key
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: "pip"
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run pytest
+        run: |
+          # test_extractor_direct makes a real, unmocked Groq call (unlike
+          # every other test here) and has no self-skip guard, so it would
+          # fail on the dummy key above with a genuine 401 rather than skip.
+          # It's a pre-Phase-6 manual check (see CLAUDE.md); excluded here,
+          # not deleted - still runnable locally with real credentials.
+          pytest tests/ --deselect tests/test_phase5_direct.py::test_extractor_direct -v
