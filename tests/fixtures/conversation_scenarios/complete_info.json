@@ -1,0 +1,53 @@
+{
+  "description": "Borrower answers every question directly; all fields populate via realtime regex extraction and the call reaches CONFIRMATION/COMPLETED.",
+  "turns": [
+    {
+      "user_text": "My name is Priya Sharma",
+      "llm_reply": "Thanks Priya! What loan amount are you looking for?",
+      "expected_stage": "collect_loan_amount",
+      "expected_borrower": {
+        "name": "Priya Sharma", "phone": "", "loan_amount": "", "monthly_income": "", "loan_purpose": "", "is_complete": false
+      }
+    },
+    {
+      "user_text": "I need a loan of 5 lakh rupees",
+      "llm_reply": "Got it, 5 lakh. What's your monthly income?",
+      "expected_stage": "collect_income",
+      "expected_borrower": {
+        "name": "Priya Sharma", "phone": "", "loan_amount": "5 lakh", "monthly_income": "", "loan_purpose": "", "is_complete": false
+      }
+    },
+    {
+      "user_text": "My monthly income is 80 thousand",
+      "llm_reply": "Thanks. What's the purpose of this loan?",
+      "expected_stage": "collect_purpose",
+      "expected_borrower": {
+        "name": "Priya Sharma", "phone": "", "loan_amount": "5 lakh", "monthly_income": "80 thousand", "loan_purpose": "", "is_complete": false
+      }
+    },
+    {
+      "user_text": "I want it for home renovation",
+      "llm_reply": "Perfect, let me confirm everything with you.",
+      "expected_stage": "confirmation",
+      "expected_borrower": {
+        "name": "Priya Sharma", "phone": "", "loan_amount": "5 lakh", "monthly_income": "80 thousand", "loan_purpose": "Home Renovation", "is_complete": true
+      }
+    },
+    {
+      "user_text": "Yes, all the information is correct, please proceed",
+      "llm_reply": "Wonderful, thank you! We'll be in touch shortly.",
+      "expected_stage": "confirmation",
+      "expected_borrower": {
+        "name": "Priya Sharma", "phone": "", "loan_amount": "5 lakh", "monthly_income": "80 thousand", "loan_purpose": "Home Renovation", "is_complete": true
+      }
+    }
+  ],
+  "final_extraction_mock": {
+    "name": "Priya Sharma", "phone": "", "loan_amount": "5,00,000", "monthly_income": "80,000", "loan_purpose": "Home Renovation", "is_complete": true
+  },
+  "expected_final_profile": {
+    "name": "Priya Sharma", "phone": "", "loan_amount": "5,00,000", "monthly_income": "80,000", "loan_purpose": "Home Renovation", "is_complete": true
+  },
+  "expected_final_status": "completed",
+  "expected_final_stage": "completed"
+}

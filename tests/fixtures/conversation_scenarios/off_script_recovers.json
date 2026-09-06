@@ -1,0 +1,69 @@
+{
+  "description": "Borrower repeatedly goes off-topic (a question, a stall, a refusal) before answering each question; the stage-gated regex heuristic must hold its stage on the off-topic turns and only advance once real info is given, eventually reaching completion.",
+  "turns": [
+    {
+      "user_text": "Actually before that, what interest rate do you guys offer?",
+      "llm_reply": "I can only help with onboarding right now - could you tell me your full name first?",
+      "expected_stage": "collect_name",
+      "expected_borrower": {
+        "name": "", "phone": "", "loan_amount": "", "monthly_income": "", "loan_purpose": "", "is_complete": false
+      }
+    },
+    {
+      "user_text": "This is Sana Iqbal",
+      "llm_reply": "Great to meet you, Sana! What loan amount are you looking for?",
+      "expected_stage": "collect_loan_amount",
+      "expected_borrower": {
+        "name": "Sana Iqbal", "phone": "", "loan_amount": "", "monthly_income": "", "loan_purpose": "", "is_complete": false
+      }
+    },
+    {
+      "user_text": "Can I call you back tomorrow instead?",
+      "llm_reply": "Of course, but if you have a moment now - what loan amount are you looking for?",
+      "expected_stage": "collect_loan_amount",
+      "expected_borrower": {
+        "name": "Sana Iqbal", "phone": "", "loan_amount": "", "monthly_income": "", "loan_purpose": "", "is_complete": false
+      }
+    },
+    {
+      "user_text": "Okay fine, 7 lakh should work",
+      "llm_reply": "Great, 7 lakh noted. What's your monthly income?",
+      "expected_stage": "collect_income",
+      "expected_borrower": {
+        "name": "Sana Iqbal", "phone": "", "loan_amount": "7 lakh", "monthly_income": "", "loan_purpose": "", "is_complete": false
+      }
+    },
+    {
+      "user_text": "My income is confidential, sorry",
+      "llm_reply": "No worries - even a rough monthly figure helps. Could you share an estimate?",
+      "expected_stage": "collect_income",
+      "expected_borrower": {
+        "name": "Sana Iqbal", "phone": "", "loan_amount": "7 lakh", "monthly_income": "", "loan_purpose": "", "is_complete": false
+      }
+    },
+    {
+      "user_text": "Alright, roughly 60 thousand per month",
+      "llm_reply": "Thank you! Lastly, what's the purpose of this loan?",
+      "expected_stage": "collect_purpose",
+      "expected_borrower": {
+        "name": "Sana Iqbal", "phone": "", "loan_amount": "7 lakh", "monthly_income": "60 thousand", "loan_purpose": "", "is_complete": false
+      }
+    },
+    {
+      "user_text": "I want it for a wedding",
+      "llm_reply": "Wonderful, let me confirm everything with you.",
+      "expected_stage": "confirmation",
+      "expected_borrower": {
+        "name": "Sana Iqbal", "phone": "", "loan_amount": "7 lakh", "monthly_income": "60 thousand", "loan_purpose": "A Wedding", "is_complete": true
+      }
+    }
+  ],
+  "final_extraction_mock": {
+    "name": "Sana Iqbal", "phone": "", "loan_amount": "7,00,000", "monthly_income": "60,000", "loan_purpose": "Wedding", "is_complete": true
+  },
+  "expected_final_profile": {
+    "name": "Sana Iqbal", "phone": "", "loan_amount": "7,00,000", "monthly_income": "60,000", "loan_purpose": "Wedding", "is_complete": true
+  },
+  "expected_final_status": "completed",
+  "expected_final_stage": "completed"
+}

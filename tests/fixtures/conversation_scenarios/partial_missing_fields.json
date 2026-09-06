@@ -1,0 +1,29 @@
+{
+  "description": "Call ends early after name + loan amount; income and purpose are never given. Engine must finalize with a partial, non-crashing profile instead of forcing completion.",
+  "turns": [
+    {
+      "user_text": "My name is Rahul Mehta",
+      "llm_reply": "Thanks Rahul! What loan amount are you looking for?",
+      "expected_stage": "collect_loan_amount",
+      "expected_borrower": {
+        "name": "Rahul Mehta", "phone": "", "loan_amount": "", "monthly_income": "", "loan_purpose": "", "is_complete": false
+      }
+    },
+    {
+      "user_text": "I can manage around 3 lakh",
+      "llm_reply": "Understood. What's your monthly income?",
+      "expected_stage": "collect_income",
+      "expected_borrower": {
+        "name": "Rahul Mehta", "phone": "", "loan_amount": "3 lakh", "monthly_income": "", "loan_purpose": "", "is_complete": false
+      }
+    }
+  ],
+  "final_extraction_mock": {
+    "name": "Rahul Mehta", "phone": "", "loan_amount": "3,00,000", "monthly_income": "", "loan_purpose": "", "is_complete": false
+  },
+  "expected_final_profile": {
+    "name": "Rahul Mehta", "phone": "", "loan_amount": "3,00,000", "monthly_income": "", "loan_purpose": "", "is_complete": false
+  },
+  "expected_final_status": "partial",
+  "expected_final_stage": "collect_income"
+}

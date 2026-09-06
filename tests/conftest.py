@@ -50,3 +50,31 @@ async def dev_call_session(http_client: httpx.AsyncClient) -> AsyncIterator[str]
     response = await http_client.post("/dev/reset", json={"call_sid": call_sid})
     response.raise_for_status()
     yield call_sid
+
+
+@pytest_asyncio.fixture
+async def asgi_client() -> AsyncIterator[httpx.AsyncClient]:
+    """In-process client for tests that monkeypatch infrastructure adapters.
+
+    `http_client` above talks over the network to a separately-running
+    `python main.py` process, so monkeypatch in the test process can never
+    reach into it. This fixture imports the FastAPI app directly and talks
+    to it via an ASGI transport in the same process, so patching e.g.
+    GroqHandler.get_response actually takes effect.
+    """
+    import main as main_module
+
+    app = main_module.app
+    transport = httpx.ASGITransport(app=app)
+    async with app.router.lifespan_context(app):
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            yield client
+
+
+@pytest_asyncio.fixture
+async def asgi_dev_call_session(asgi_client: httpx.AsyncClient) -> AsyncIterator[str]:
+    """Same reset-to-a-fresh-call_sid contract as dev_call_session, but over asgi_client."""
+    call_sid = make_call_sid("E2E_SCENARIO")
+    response = await asgi_client.post("/dev/reset", json={"call_sid": call_sid})
+    response.raise_for_status()
+    yield call_sid
