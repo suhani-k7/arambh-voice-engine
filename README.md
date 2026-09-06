@@ -1,5 +1,7 @@
 # Voice Engine
 
+[![Tests](https://github.com/suhani-k7/arambh-voice-engine/actions/workflows/tests.yml/badge.svg)](https://github.com/suhani-k7/arambh-voice-engine/actions/workflows/tests.yml)
+
 An AI-powered voice agent designed to automate the initial borrower onboarding and data collection process for home loans and loans against property (LAP).
 
 The system aims to replace manual telephonic interactions by enabling real-time conversations between borrowers and AI agents. It integrates telephony, speech-to-text, large language models, and text-to-speech technologies to conduct natural conversations, gather relevant borrower information, and convert unstructured conversations into structured data for downstream processing.
