@@ -5,6 +5,7 @@ from fastapi import WebSocket
 from core.interfaces import TelephonyHandler, STTHandler, LLMHandler, TTSHandler
 from application.conversation_engine import ConversationEngine
 from application.audio_bridge import AudioBridge
+from utils.latency import elapsed_since_ms, mark, record_duration, timed_stage
 from utils.logger import AppLogger
 
 logger = AppLogger.get_instance()
@@ -38,7 +39,12 @@ class TwilioHandler(TelephonyHandler):
         async def speak(text: str) -> None:
             """Synthesize and stream TTS audio."""
             try:
-                mulaw_bytes = await self._tts.synthesize(text)
+                call_sid = engine.state.call_sid
+                gap_ms = elapsed_since_ms(call_sid, "stt_final_transcript")
+                if gap_ms is not None:
+                    record_duration(call_sid, "stt_final_to_tts_start", gap_ms)
+                async with timed_stage(call_sid, "tts_synthesis"):
+                    mulaw_bytes = await self._tts.synthesize(text)
                 if bridge:
                     await bridge.play(mulaw_bytes)
             except Exception as e:
@@ -60,6 +66,7 @@ class TwilioHandler(TelephonyHandler):
                     bridge.barge_in()
                 return
 
+            mark(engine.state.call_sid, "stt_final_transcript")
             response = await engine.process_transcript(text, is_final)
             if response:
                 await response_queue.put(response)

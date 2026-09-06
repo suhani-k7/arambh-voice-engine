@@ -3,6 +3,7 @@ from core.conversation_state import ConversationState, ConversationStage, Borrow
 from core.interfaces import LLMHandler, ExtractorHandler, StorageHandler
 from factories.extractor_factory import get_extractor_handler
 from factories.storage_factory import get_storage_handler
+from utils.latency import timed_stage
 from utils.logger import AppLogger
 
 logger = AppLogger.get_instance()
@@ -48,7 +49,8 @@ class ConversationEngine:
                 content = f"{content} {stage_hint}"
             messages_for_llm.append({"role": role, "content": content})
 
-        response = await self._llm.get_response(messages_for_llm)
+        async with timed_stage(self.state.call_sid, "llm_response"):
+            response = await self._llm.get_response(messages_for_llm)
         self.state.add_assistant_message(response)
         self._advance_stage_if_needed()
 

@@ -8,6 +8,7 @@ from config.settings import settings
 from application.call_workflow import incoming_call_workflow, media_stream_workflow
 from application.conversation_engine import ConversationEngine
 from factories.llm_factory import get_llm_handler
+from utils.latency import get_call_metrics
 from utils.logger import AppLogger
 
 logger = AppLogger.get_instance()
@@ -103,6 +104,16 @@ async def dev_complete_call():
         "call_sid": _dev_engine.state.call_sid,
         "final_profile": profile.to_dict(),
         "call_metadata": _dev_engine.state.to_call_dict()
+    }
+
+
+@app.get("/dev/last-call-metrics")
+async def dev_last_call_metrics():
+    """Return recorded latency stage timings for the current dev engine's call_sid."""
+    call_sid = _dev_engine.state.call_sid
+    return {
+        "call_sid": call_sid,
+        "metrics": get_call_metrics(call_sid),
     }
 
 
