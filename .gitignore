@@ -5,6 +5,8 @@ __pycache__/
 logs/
 .pytest_cache/
 storage/*.db
+storage/*.db-shm
+storage/*.db-wal
 storage/transcripts/
 *.ul
 .idea/
