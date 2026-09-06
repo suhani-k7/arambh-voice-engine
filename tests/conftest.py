@@ -13,9 +13,16 @@ import pytest_asyncio
 BASE_URL = "http://localhost:8000"
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def _ensure_server_running() -> None:
-    """Skip the whole E2E session if the dev server isn't reachable."""
+    """Skip tests that need it if the dev server isn't reachable.
+
+    Not autouse: only tests that actually talk to a separately-running
+    `python main.py` process (via http_client) need this. Tests that go
+    through asgi_client (in-process ASGI transport) or drive handlers
+    directly with fakes don't touch the live server at all and shouldn't
+    be skipped because of it.
+    """
     try:
         response = httpx.get(f"{BASE_URL}/health", timeout=2.0)
         response.raise_for_status()
@@ -27,7 +34,7 @@ def _ensure_server_running() -> None:
 
 
 @pytest_asyncio.fixture
-async def http_client() -> AsyncIterator[httpx.AsyncClient]:
+async def http_client(_ensure_server_running: None) -> AsyncIterator[httpx.AsyncClient]:
     """Async HTTP client scoped to a single test, pointed at the dev server."""
     async with httpx.AsyncClient(base_url=BASE_URL, timeout=30.0) as client:
         yield client

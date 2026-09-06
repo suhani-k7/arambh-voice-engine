@@ -36,8 +36,17 @@ class TwilioHandler(TelephonyHandler):
         bridge: AudioBridge | None = None
         response_queue: asyncio.Queue = asyncio.Queue()
 
+        # Per-call speaking state, used to detect and cancel barge-in targets.
+        # `is_speaking` covers TTS synthesis *and* playback (a superset of
+        # AudioBridge.is_playing, which only covers playback), since a final
+        # transcript arriving mid-synthesis should also interrupt.
+        is_speaking = False
+        current_speak_task: asyncio.Task | None = None
+
         async def speak(text: str) -> None:
             """Synthesize and stream TTS audio."""
+            nonlocal is_speaking
+            is_speaking = True
             try:
                 call_sid = engine.state.call_sid
                 gap_ms = elapsed_since_ms(call_sid, "stt_final_transcript")
@@ -47,16 +56,28 @@ class TwilioHandler(TelephonyHandler):
                     mulaw_bytes = await self._tts.synthesize(text)
                 if bridge:
                     await bridge.play(mulaw_bytes)
+            except asyncio.CancelledError:
+                logger.info("Speak task cancelled by barge-in | call_sid: %s", engine.state.call_sid)
+                raise
             except Exception as e:
                 logger.error("TTS/playback error: %s", e)
+            finally:
+                is_speaking = False
 
         async def response_worker() -> None:
             """Processes agent responses sequentially from the queue."""
+            nonlocal current_speak_task
             while True:
                 text = await response_queue.get()
                 if text is None:
                     break
-                await speak(text)
+                current_speak_task = asyncio.create_task(speak(text))
+                try:
+                    await current_speak_task
+                except asyncio.CancelledError:
+                    pass  # barge-in cancelled this turn's audio; move on to the next queued response
+                finally:
+                    current_speak_task = None
                 response_queue.task_done()
 
         async def on_transcript(text: str, is_final: bool) -> None:
@@ -65,6 +86,13 @@ class TwilioHandler(TelephonyHandler):
                 if bridge and bridge.is_playing:
                     bridge.barge_in()
                 return
+
+            if is_speaking:
+                logger.info("Barge-in: final transcript arrived while agent is speaking | call_sid: %s", engine.state.call_sid)
+                if bridge:
+                    await bridge.send_clear()
+                if current_speak_task and not current_speak_task.done():
+                    current_speak_task.cancel()
 
             mark(engine.state.call_sid, "stt_final_transcript")
             response = await engine.process_transcript(text, is_final)
@@ -101,9 +129,10 @@ class TwilioHandler(TelephonyHandler):
                     bridge = AudioBridge(websocket, stream_sid)
                     logger.info("Stream started | streamSid: %s | callSid: %s", stream_sid, call_sid)
 
-                    # Speak greeting
+                    # Speak greeting (tracked the same way as queued responses,
+                    # so barge-in during the greeting itself can cancel it too)
                     greeting = engine.get_greeting()
-                    asyncio.create_task(speak(greeting))
+                    current_speak_task = asyncio.create_task(speak(greeting))
 
                 elif event_type == "media":
                     payload = data["media"]["payload"]
