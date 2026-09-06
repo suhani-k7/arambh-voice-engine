@@ -2,6 +2,7 @@ import asyncio
 import websockets
 import json
 import base64
+import math
 import os
 import sys
 import httpx
@@ -177,6 +178,80 @@ async def simulate_persistence_and_extraction():
         print("\n🎉 Phase 5 Persistence & Extraction Simulation Complete!")
 
 
+def percentile(data: list[float], pct: float) -> float:
+    """Nearest-rank percentile of `data` for pct in [0, 100]; 0.0 if data is empty."""
+    if not data:
+        return 0.0
+    ordered = sorted(data)
+    rank = max(0, min(len(ordered) - 1, math.ceil(pct / 100 * len(ordered)) - 1))
+    return ordered[rank]
+
+
+PROFILING_TURNS: list[str] = [
+    "My name is Priya Sharma",
+    "I need a loan of 5 lakh rupees",
+    "My monthly income is 80 thousand",
+    "I want it for home renovation",
+    "Yes, all the information is correct, please proceed",
+]
+
+
+async def simulate_latency_profiling(n_calls: int = 10) -> None:
+    """Phase 6 Step 4 — runs n_calls full calls through the /dev/* endpoints
+    and reports p50/p95 latency per pipeline stage, using Step 3's
+    utils/latency.py instrumentation (read back via /dev/last-call-metrics).
+
+    /dev/* drives ConversationEngine directly and never touches STT or TTS,
+    so only the "llm_response" stage will have samples here — profiling
+    stt_final_to_tts_start / tts_synthesis requires a real call through
+    /ws/media-stream, which this script's audio simulation doesn't wire up
+    to the LLM/TTS pipeline.
+    """
+    print(f"\n--- Latency Profiling: {n_calls} calls through /dev/* endpoints ---")
+    stage_samples: dict[str, list[float]] = {}
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        for i in range(1, n_calls + 1):
+            call_sid = f"PROFILE_CALL_{i}_{int(asyncio.get_event_loop().time() * 1000)}"
+            await client.post(f"{BASE_URL}/dev/reset", json={"call_sid": call_sid})
+            await client.get(f"{BASE_URL}/dev/greeting")
+
+            for turn in PROFILING_TURNS:
+                await client.post(
+                    f"{BASE_URL}/dev/inject-transcript", json={"text": turn, "is_final": True}
+                )
+
+            await client.post(f"{BASE_URL}/dev/complete-call")
+
+            metrics_response = await client.get(f"{BASE_URL}/dev/last-call-metrics")
+            for entry in metrics_response.json().get("metrics", []):
+                stage_samples.setdefault(entry["stage"], []).append(entry["duration_ms"])
+
+            print(f"Call {i}/{n_calls} done ({call_sid})")
+
+    print("\n--- Latency Report (ms) ---")
+    if not stage_samples:
+        print("No latency samples recorded.")
+        return
+
+    print(f"{'stage':<24}{'count':>7}{'p50':>10}{'p95':>10}{'min':>10}{'max':>10}")
+    for stage, samples in stage_samples.items():
+        print(
+            f"{stage:<24}{len(samples):>7}"
+            f"{percentile(samples, 50):>10.1f}"
+            f"{percentile(samples, 95):>10.1f}"
+            f"{min(samples):>10.1f}"
+            f"{max(samples):>10.1f}"
+        )
+
+    print(
+        "\nNote: /dev/* endpoints only exercise ConversationEngine directly, so "
+        "only 'llm_response' has samples here. STT/TTS stages "
+        "(stt_final_to_tts_start, tts_synthesis) require a real call through "
+        "/ws/media-stream."
+    )
+
+
 async def main():
     print("Choose test mode:")
     print("1 — Audio stream (Phase 1 & 2)")
@@ -184,6 +259,7 @@ async def main():
     print("3 — TTS only (Phase 4)")
     print("4 — Persistence & Structured Extraction (Phase 5)")
     print("5 — Run All Tests")
+    print("6 — Latency Profiling (Phase 6)")
     choice = input("Enter choice: ").strip()
 
     if choice == "1":
@@ -199,6 +275,10 @@ async def main():
         await simulate_tts()
         await simulate_conversation()
         await simulate_persistence_and_extraction()
+    elif choice == "6":
+        n_calls_input = input("How many calls to profile? [10]: ").strip()
+        n_calls = int(n_calls_input) if n_calls_input else 10
+        await simulate_latency_profiling(n_calls)
     else:
         print("Invalid choice")
 
