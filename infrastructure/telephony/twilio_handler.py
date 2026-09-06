@@ -10,6 +10,8 @@ from utils.logger import AppLogger
 
 logger = AppLogger.get_instance()
 
+TTS_SYNTHESIS_TIMEOUT_SECONDS = 10.0
+
 
 class TwilioHandler(TelephonyHandler):
 
@@ -53,7 +55,9 @@ class TwilioHandler(TelephonyHandler):
                 if gap_ms is not None:
                     record_duration(call_sid, "stt_final_to_tts_start", gap_ms)
                 async with timed_stage(call_sid, "tts_synthesis"):
-                    mulaw_bytes = await self._tts.synthesize(text)
+                    mulaw_bytes = await asyncio.wait_for(
+                        self._tts.synthesize(text), timeout=TTS_SYNTHESIS_TIMEOUT_SECONDS
+                    )
                 if bridge:
                     await bridge.play(mulaw_bytes)
             except asyncio.CancelledError:

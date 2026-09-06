@@ -1,3 +1,4 @@
+import asyncio
 import re
 from core.conversation_state import ConversationState, ConversationStage, BorrowerProfile
 from core.interfaces import LLMHandler, ExtractorHandler, StorageHandler
@@ -7,6 +8,9 @@ from utils.latency import timed_stage
 from utils.logger import AppLogger
 
 logger = AppLogger.get_instance()
+
+LLM_RESPONSE_TIMEOUT_SECONDS = 10.0
+LLM_TIMEOUT_FALLBACK_REPLY = "I'm sorry, I didn't quite catch that. Could you please repeat what you said?"
 
 class ConversationEngine:
 
@@ -50,7 +54,16 @@ class ConversationEngine:
             messages_for_llm.append({"role": role, "content": content})
 
         async with timed_stage(self.state.call_sid, "llm_response"):
-            response = await self._llm.get_response(messages_for_llm)
+            try:
+                response = await asyncio.wait_for(
+                    self._llm.get_response(messages_for_llm), timeout=LLM_RESPONSE_TIMEOUT_SECONDS
+                )
+            except asyncio.TimeoutError:
+                logger.error(
+                    "LLM response timed out after %.1fs | call_sid: %s",
+                    LLM_RESPONSE_TIMEOUT_SECONDS, self.state.call_sid
+                )
+                response = LLM_TIMEOUT_FALLBACK_REPLY
         self.state.add_assistant_message(response)
         self._advance_stage_if_needed()
 
@@ -164,13 +177,25 @@ class ConversationEngine:
         if self.state.borrower.is_complete():
             self.state.stage = ConversationStage.COMPLETED
 
-        # 3. Persist to database & storage
+        # 3. Persist to database & storage — each save gets its own error
+        # handling so a failure in one doesn't prevent the others from being
+        # attempted (e.g. a borrower-profile save failure shouldn't also
+        # silently skip saving the transcript).
         try:
             await self._storage.save_call(self.state.to_call_dict())
-            await self._storage.save_borrower_profile(self.state.call_sid, self.state.borrower.to_dict())
-            await self._storage.save_transcript(self.state.call_sid, self.state.history)
-            logger.info("Successfully persisted call & profile to storage for call_sid: %s", self.state.call_sid)
         except Exception as e:
-            logger.error("Failed to persist call session to storage: %s", e)
+            logger.error("Failed to persist call metadata | call_sid: %s | error: %s", self.state.call_sid, e)
+
+        try:
+            await self._storage.save_borrower_profile(self.state.call_sid, self.state.borrower.to_dict())
+        except Exception as e:
+            logger.error("Failed to persist borrower profile | call_sid: %s | error: %s", self.state.call_sid, e)
+
+        try:
+            await self._storage.save_transcript(self.state.call_sid, self.state.history)
+        except Exception as e:
+            logger.error("Failed to persist transcript | call_sid: %s | error: %s", self.state.call_sid, e)
+
+        logger.info("Persistence pass complete for call_sid: %s", self.state.call_sid)
 
         return self.state.borrower
